@@ -212,7 +212,7 @@ sub recurse_dir
 
     my $res = 1;
     for (@files) {
-        my $f = "$dir/$_";
+        my $f = "$dir\\$_";
         if (-f $f || -l $f) {
             unless (unlink $f) {
                 log_msg("rm $f: $!\n");
@@ -505,7 +505,7 @@ sub save_problem_description
 {
     my ($pid, $title, $date, $state) = @_;
 
-    my $fn = "tests/$pid.des";
+    my $fn = "tests\\$pid.des";
     open my $desc, '>', $fn
         or return log_msg("open failed: '$fn' ($!)\n");
 
@@ -533,10 +533,10 @@ sub generate_test
 
     my ($ps) = grep $_->{id} == $test->{generator_id}, @$problem_sources or die;
 
-    my_remove "$rundir/*"
+    my_remove "$rundir\\*"
         or return undef;
 
-    my_copy("tests/$pid/temp/$test->{generator_id}/*", "$rundir")
+    my_copy("tests\\$pid\\temp\\$test->{generator_id}\\*", "$rundir")
         or return undef;
 
     my $generate_cmd = get_cmd('generate', $ps->{de_id})
@@ -588,7 +588,7 @@ sub generate_test_group
     {
         next unless ($_->{gen_group} || 0) == $test->{gen_group};
         $_->{generated} = 1;
-        my_copy(sprintf("$rundir/$out", $_->{rank}), "tests/$pid/$_->{rank}.tst")
+        my_copy(sprintf("$rundir\\$out", $_->{rank}), "tests\\$pid\\$_->{rank}.tst")
             or return undef;
     }
     1;
@@ -615,7 +615,7 @@ sub prepare_tests
         # создаем входной файл теста
         if (defined $t->{in_file})
         {
-            write_to_file("tests/$pid/$t->{rank}.tst", $t->{in_file}) 
+            write_to_file("tests\\$pid\\$t->{rank}.tst", $t->{in_file})
                 or return undef;
         }
         elsif (defined $t->{generator_id})
@@ -629,7 +629,7 @@ sub prepare_tests
             {
                 my $out = generate_test($pid, $t, $input_fname)
                     or return undef;
-                my_copy("$rundir/$out", "tests/$pid/$t->{rank}.tst")
+                my_copy("$rundir\\$out", "tests\\$pid\\$t->{rank}.tst")
                     or return undef;
             }
         }
@@ -642,20 +642,20 @@ sub prepare_tests
         # создаем выходной файл теста
         if (defined $t->{out_file})
         {
-            write_to_file("tests/$pid/$t->{rank}.ans", $t->{out_file})
+            write_to_file("tests\\$pid\\$t->{rank}.ans", $t->{out_file})
                 or return undef;
         }
         elsif (defined $t->{std_solution_id})
         {
             my ($ps) = grep $_->{id} == $t->{std_solution_id}, @$problem_sources;
 
-            my_remove "$rundir/*"
+            my_remove "$rundir\\*"
                 or return undef;
  
-            my_copy("tests/$pid/temp/$t->{std_solution_id}/*", "$rundir")
+            my_copy("tests\\$pid\\temp\\$t->{std_solution_id}\\*", "$rundir")
                 or return undef;
 
-            my_copy("tests/$pid/$t->{rank}.tst", "$rundir/$input_fname")
+            my_copy("tests\\$pid\\$t->{rank}.tst", "$rundir\\$input_fname")
                 or return undef;
 
             my $run_cmd = get_cmd('run', $ps->{de_id})
@@ -676,7 +676,7 @@ sub prepare_tests
                 return undef;
             }
 
-            my_copy("$rundir/$output_fname", "tests/$pid/$t->{rank}.ans")
+            my_copy("$rundir\\$output_fname", "tests\\$pid\\$t->{rank}.ans")
                 or return undef;
         }
         else 
@@ -698,7 +698,7 @@ sub prepare_modules
     {
         my (undef, undef, $fname, $name, undef) = split_fname($m->{fname});
         log_msg("module: $fname\n");
-        write_to_file("$rundir/$fname", $m->{src})
+        write_to_file("$rundir\\$fname", $m->{src})
             or return undef;
 
         # в данном случае ничего страшного, если compile_cmd нету, 
@@ -729,10 +729,10 @@ sub initialize_problem
         or return undef;
 
     # компилируем вспомогательные программы (эталонные решения, генераторы тестов, программы проверки)
-    my_mkdir("tests/$pid") 
+    my_mkdir("tests\\$pid")
         or return undef;
 
-    my_mkdir("tests/$pid/temp") 
+    my_mkdir("tests\\$pid\\temp")
         or return undef;
 
     my %main_source_types;
@@ -740,14 +740,14 @@ sub initialize_problem
 
     for my $ps (grep $main_source_types{$_->{stype}}, @$problem_sources)
     {
-        my_remove "$rundir/*"
+        my_remove "$rundir\\*"
             or return undef;
         
         prepare_modules($cats::source_modules{$ps->{stype}} || 0)
             or return undef;
 
         my ($vol, $dir, $fname, $name, $ext) = split_fname($ps->{fname});
-        write_to_file("$rundir/$fname", $ps->{src}) 
+        write_to_file("$rundir\\$fname", $ps->{src})
             or return undef;
 
         if (my $compile_cmd = get_cmd('compile', $ps->{de_id}))
@@ -763,14 +763,14 @@ sub initialize_problem
 
         # после компиляции генератора положить ему formal_input_fname
         if ($ps->{stype} == $cats::generator && $formal_input) {
-           write_to_file("$rundir/$formal_input_fname", $formal_input)
+           write_to_file("$rundir\\$formal_input_fname", $formal_input)
               or return undef;
         }
 
-        my_mkdir("tests/$pid/temp/$ps->{id}")
+        my_mkdir("tests\\$pid\\temp\\$ps->{id}")
             or return undef;
 
-        my_copy("$rundir/*", "tests/$pid/temp/$ps->{id}")
+        my_copy("$rundir\\*", "tests\\$pid\\temp\\$ps->{id}")
             or return undef;
     }
     prepare_tests($pid, $input_fname, $output_fname, $tlimit, $mlimit)
@@ -846,7 +846,7 @@ sub run_checker
     {   
         my ($ps) = grep $_->{id} == $problem->{checker_id}, @$problem_sources;
 
-        my_safe_copy("tests/$problem->{id}/temp/$problem->{checker_id}/*", "$rundir", $problem->{id})
+        my_safe_copy("tests\\$problem->{id}\\temp\\$problem->{checker_id}\\*", "$rundir", $problem->{id})
             or return undef;
         
         (undef, undef, undef, $checker_params->{name}, undef) =
@@ -894,11 +894,11 @@ sub run_single_test
     $test_run_details{test_rank} = $p{rank};
     $test_run_details{checker_comment} = '';
 
-    my_remove "$rundir/*" or return undef;
-    my_safe_copy("solutions/$p{sid}/*", "$rundir", $problem->{id})
+    my_remove "$rundir\\*" or return undef;
+    my_safe_copy("solutions\\$p{sid}\\*", "$rundir", $problem->{id})
         or return undef;
     my_safe_copy(
-        "tests/$problem->{id}/$p{rank}.tst", "$rundir/$problem->{input_file}", $problem->{id}
+        "tests\\$problem->{id}\\$p{rank}.tst", "$rundir\\$problem->{input_file}", $problem->{id}
     ) or return undef;
     my $run_cmd = get_cmd('run', $p{de_id})
         or return undef;
@@ -936,9 +936,9 @@ sub run_single_test
         }
     }
 
-    my_safe_copy("tests/$problem->{id}/$p{rank}.tst", "$rundir/$problem->{input_file}", $problem->{id})
+    my_safe_copy("tests\\$problem->{id}\\$p{rank}.tst", "$rundir\\$problem->{input_file}", $problem->{id})
         or return undef;
-    my_safe_copy("tests/$problem->{id}/$p{rank}.ans", "$rundir/$p{rank}.ans", $problem->{id})
+    my_safe_copy("tests\\$problem->{id}\\$p{rank}.ans", "$rundir\\$p{rank}.ans", $problem->{id})
         or return undef;
 
     run_checker(problem => $problem, rank => $p{rank})
@@ -1004,11 +1004,11 @@ sub test_solution
     {
     my $r = eval
     {
-    my_remove "$rundir/*"
+    my_remove "$rundir\\*"
         or return undef;
       
     prepare_modules($cats::solution_module) or return undef;
-    write_to_file("$rundir/$problem->{full_name}", $src)
+    write_to_file("$rundir\\$problem->{full_name}", $src)
         or return undef;
 
     my $compile_cmd = get_cmd('compile', $de_id);
@@ -1023,7 +1023,7 @@ sub test_solution
         {
             my $runfile = get_cmd('runfile', $de_id);
             $runfile = apply_params($runfile, $problem) if $runfile;
-            if ($runfile && !(-f "$rundir/$runfile"))
+            if ($runfile && !(-f "$rundir\\$runfile"))
             {
                 $ok = 0;
                 log_msg("Runfile '$runfile' not created\n");
@@ -1037,10 +1037,10 @@ sub test_solution
         }
     }
 
-    my_mkdir("solutions/$sid")
+    my_mkdir("solutions\\$sid")
         or return undef;
 
-    my_copy("$rundir/*", "solutions/$sid")
+    my_copy("$rundir\\*", "solutions\\$sid")
         or return undef;
 
     # сначале тестируем в случайном порядке,
@@ -1146,7 +1146,7 @@ sub problem_ready
 {
     my ($pid) = @_;
 
-    open my $pdesc, '<', "tests/$pid.des" or return 0;
+    open my $pdesc, '<', "tests\\$pid.des" or return 0;
 
     my $title = <$pdesc>;
     my $date = <$pdesc>;
@@ -1212,9 +1212,9 @@ sub process_requests
         }
         $r->{status} == $cats::problem_st_ready || $r->{is_jury}
             or next;
-        my ($src, $fname, $de_id, $de_code) =
+        my ($hash , $fname, $de_id, $de_code) =
         $dbh->selectrow_array(qq~
-            SELECT S.src, S.fname, D.id, D.code 
+            SELECT S.hash, S.fname, D.id, D.code
             FROM sources S, default_de D
             WHERE S.req_id = ? AND D.id = S.de_id~, {}, $r->{id});
         # данная среда разработки не поддерживается
@@ -1251,6 +1251,7 @@ sub process_requests
                 initialize_problem($r->{problem_id})
                     or $state = $cats::st_unhandled_error;
             };
+            print $@ if $@;
             $state = $cats::st_unhandled_error if $@;
         }
         else
