@@ -24,7 +24,7 @@ my $exit_status;
 my $user_time;
 my $memory_used;
 my $written;
-  
+
 my $judge_name;
 my $workdir;
 my $rundir;
@@ -50,7 +50,7 @@ my $last_log_line = '';
 
 sub log_msg 
 {
-    my $s = shift;    
+    my $s = shift;
     syswrite STDOUT, $s;
     if ($last_log_line ne $s)
     {
@@ -109,19 +109,19 @@ sub write_to_file
     }
 
     print F $src;
-    close F;    
+    close F;
     1;
 }
 
 
-sub clear_log_dump 
+sub clear_log_dump
 {
     $dump = '';
 }
 
 
 sub dump_child_stdout
-{    
+{
     my %p = @_;
     my $duplicate_to = $p{duplicate_to};
 
@@ -137,7 +137,7 @@ sub dump_child_stdout
         if ($show_child_stdout) {
             print STDERR $_;
         }
-                        
+
         if ($save_child_stdout) {
             syswrite FDLOG, $_;
             $dump .= $_;
@@ -147,7 +147,7 @@ sub dump_child_stdout
             $$duplicate_to .= $_;
             syswrite FDLOG, '!!';
         }
-        
+
         $eol = (substr($_, -2, 2) eq '\n');
     }
 
@@ -206,8 +206,8 @@ sub recurse_dir
         log_msg("opendir $dir: $!\n");
         return 0;
     }
-      
-    my @files = grep {! /^\.\.?$/} readdir DIR;   
+
+    my @files = grep {! /^\.\.?$/} readdir DIR;
     closedir DIR;
 
     my $res = 1;
@@ -219,7 +219,7 @@ sub recurse_dir
                 $res = 0;
             }
         }
-        elsif (-d $f && ! -l $f) {            
+        elsif (-d $f && ! -l $f) {
             recurse_dir($f)
                 or $res = 0;
 
@@ -247,22 +247,22 @@ sub expand
 sub my_remove
 {
     my @files = expand @_;
-    my $res = 1;    
-    for (@files) 
-    {             
+    my $res = 1;
+    for (@files)
+    {
         if (-f $_ || -l $_) {
             unless (unlink $_) {
                 log_msg("rm $_: $!\n");
                 $res = 0;
             }
         }
-        elsif (-d $_) 
-        {           
+        elsif (-d $_)
+        {
             recurse_dir($_)
                 or $res = 0;
 
             unless (rmdir $_) {
-                log_msg("rm $_: $!\n"); 
+                log_msg("rm $_: $!\n");
                 $res = 0;
             }
         }
@@ -271,7 +271,7 @@ sub my_remove
 }
 
 
-sub my_chdir 
+sub my_chdir
 {
     my $path = shift;
 
@@ -284,10 +284,10 @@ sub my_chdir
 }
 
 
-sub my_mkdir 
+sub my_mkdir
 {
     my $path = shift;
-    
+
     my_remove($path)
         or return undef;
 
@@ -300,7 +300,7 @@ sub my_mkdir
 }
 
 
-sub my_copy 
+sub my_copy
 {
     my ($src, $dest) = @_;
     #return 1
@@ -339,7 +339,7 @@ sub execute
     $exit_status = undef;
 
     #my %subst = %$params;
-   
+
     #for (keys %subst)
     #{
     #    $exec_str =~ s/%$_/$subst{$_}/g;
@@ -348,7 +348,6 @@ sub execute
     $exec_str =~ s/%report_file/$report_file/g;
     $exec_str =~ s/%stdout_file/$stdout_file/g;
     $exec_str =~ s/%deadline//g;
-        
     my_chdir($rundir)
         or return undef;
 
@@ -398,7 +397,7 @@ sub execute
     #ExitStatus:            0
     #----------------------------------------------
     #SpawnerError:          <none>
-    
+
     my $skip = <FREPORT>;
     my $signature = <FREPORT>;
     if ($signature ne "--------------- Spawner report ---------------\n")
@@ -418,10 +417,10 @@ sub execute
     $exit_status        = <FREPORT>;
     $skip               = <FREPORT>;
     my $spawner_error   = <FREPORT>;
-    
+
     close FREPORT;
 
-    $spawner_error =~ m/^SpawnerError:(.*)/; 
+    $spawner_error =~ m/^SpawnerError:(.*)/;
 
     $_ = trim($1);
     if ($_ ne '<none>')
@@ -431,15 +430,15 @@ sub execute
         return undef;
     }
 
-    $terminate_reason =~ m/^TerminateReason:(.*)/; 
+    $terminate_reason =~ m/^TerminateReason:(.*)/;
     $terminate_reason = trim($1);
 
     $exit_status =~ m/^ExitStatus:(.*)/;
     $exit_status = trim($1);
-    
+
     $user_time =~ m/^UserTime:(.*) \(sec\)/;
     $user_time = trim($1);
-    
+
     $memory_used =~ m/^PeakMemoryUsed:(.*)\(Mb\)/;
     $memory_used = trim($1);
 
@@ -468,8 +467,8 @@ sub execute
     }
     log_msg(
         "-> UserTime: $user_time s | MemoryUsed: $memory_used Mb | Written: $written Mb\n");
-    
-    my_chdir($workdir) 
+
+    my_chdir($workdir)
         or return undef;
 
     return 1;
@@ -604,7 +603,7 @@ sub prepare_tests
             FROM tests WHERE problem_id = ? ORDER BY rank~, { Slice => {} },
         $pid);
 
-    if (!@$tests)   
+    if (!@$tests)
     {
         log_msg("no tests defined\n");
         return undef;
@@ -633,7 +632,7 @@ sub prepare_tests
                     or return undef;
             }
         }
-        else 
+        else
         {
             log_msg("no input file defined for test #$t->{rank}\n");
             return undef;
@@ -651,7 +650,7 @@ sub prepare_tests
 
             my_remove "$rundir\\*"
                 or return undef;
- 
+
             my_copy("tests\\$pid\\temp\\$t->{std_solution_id}\\*", "$rundir")
                 or return undef;
 
@@ -664,8 +663,8 @@ sub prepare_tests
             my ($vol, $dir, $fname, $name, $ext) = split_fname($ps->{fname});
 
             execute($run_cmd, {
-                full_name => $fname, 
-                name => $name, 
+                full_name => $fname,
+                name => $name,
                 time_limit => $ps->{time_limit} || $tlimit,
                 memory_limit => $ps->{memory_limit} || $mlimit,
                 deadline => ($ps->{time_limit} ? "-d:$ps->{time_limit}" : ''),
@@ -679,7 +678,7 @@ sub prepare_tests
             my_copy("$rundir\\$output_fname", "tests\\$pid\\$t->{rank}.ans")
                 or return undef;
         }
-        else 
+        else
         {
             log_msg("no output file defined for test #$t->{rank}\n");
             return undef;
@@ -701,7 +700,7 @@ sub prepare_modules
         write_to_file("$rundir\\$fname", $m->{src})
             or return undef;
 
-        # в данном случае ничего страшного, если compile_cmd нету, 
+        # в данном случае ничего страшного, если compile_cmd нету,
         # это значит, что модуль компилировать не надо (de_code=1)
         my $compile_cmd = get_cmd('compile', $m->{de_id})
             or next;
@@ -742,7 +741,7 @@ sub initialize_problem
     {
         my_remove "$rundir\\*"
             or return undef;
-        
+
         prepare_modules($cats::source_modules{$ps->{stype}} || 0)
             or return undef;
 
@@ -758,7 +757,7 @@ sub initialize_problem
             {
                 log_msg("*** compilation error ***\n");
                 return undef;
-            }    
+            }
         }
 
         # после компиляции генератора положить ему formal_input_fname
@@ -783,7 +782,7 @@ sub initialize_problem
         my ($state, $failed_test) =
             test_solution($pid, $ps->{id}, $ps->{fname}, $ps->{src}, $ps->{de_id}, $cid);
 
-        if (!defined($state) || $state != $cats::st_accepted) 
+        if (!defined($state) || $state != $cats::st_accepted)
         {
             log_msg("==== test failed ====\n");
             return undef;
@@ -843,19 +842,19 @@ sub run_checker
             or return undef;
     }
     else
-    {   
+    {
         my ($ps) = grep $_->{id} == $problem->{checker_id}, @$problem_sources;
 
         my_safe_copy("tests\\$problem->{id}\\temp\\$problem->{checker_id}\\*", "$rundir", $problem->{id})
             or return undef;
-        
+
         (undef, undef, undef, $checker_params->{name}, undef) =
             split_fname($ps->{fname});
         $cats::source_modules{$ps->{stype}} || 0 == $cats::checker_module
             or die "Bad checker type $ps->{stype}";
         $checker_params->{checker_args} =
             $ps->{stype} == $cats::checker ? qq~"$a" "$o" "$i"~ : qq~"$i" "$o" "$a"~;
-            
+
         $checker_params->{limits} = get_special_limits($ps);
 
         $checker_cmd = get_cmd('check', $ps->{de_id})
@@ -930,7 +929,7 @@ sub run_single_test
             return $cats::st_time_limit_exceeded   if $_ eq $tm_time_limit_exceeded;
             return $cats::st_memory_limit_exceeded if $_ eq $tm_memory_limit_exceeded;
             return $cats::st_security_violation    if $_ eq $tm_write_limit_exceeded;
-            
+
             log_msg("unknown terminate reason: $_\n");
             return undef;
         }
@@ -970,7 +969,7 @@ sub test_solution
     my ($pid, $sid, $fname_with_path, $src, $de_id, $cid) = @_;
     log_msg("Testing solution: $sid for problem: $pid\n");
     my $problem = $dbh->selectrow_hashref(qq~
-        SELECT id, time_limit, memory_limit, input_file, output_file, std_checker        
+        SELECT id, time_limit, memory_limit, input_file, output_file, std_checker
         FROM problems WHERE id = ?~, { Slice => {} }, $pid);
 
     my ($run_all_tests) = $dbh->selectrow_array(qq~
@@ -978,7 +977,7 @@ sub test_solution
 
     my ($memory_handicap) = $dbh->selectrow_array(qq~
         SELECT memory_handicap FROM default_de WHERE id = ?~, undef, $de_id);
-    
+
     ($problem->{checker_id}) = map $_->{id}, grep
         { ($cats::source_modules{$_->{stype}} || -1) == $cats::checker_module }
         @$problem_sources;
@@ -996,7 +995,7 @@ sub test_solution
 
     (undef, undef, $problem->{full_name}, $problem->{name}, undef) =
         split_fname($fname_with_path);
-        
+
     my $res = undef;
     my $failed_test = undef;
 
@@ -1006,7 +1005,7 @@ sub test_solution
     {
     my_remove "$rundir\\*"
         or return undef;
-      
+
     prepare_modules($cats::solution_module) or return undef;
     write_to_file("$rundir\\$problem->{full_name}", $src)
         or return undef;
@@ -1054,9 +1053,9 @@ sub test_solution
             log_msg("no tests defined\n");
             return $cats::st_unhandled_error;
         }
-    
+
         # получаем случайный порядок тестов
-        if ($pass == 1 && !$run_all_tests) 
+        if ($pass == 1 && !$run_all_tests)
         {
             for (@tests) {
                 my $r = \$tests[rand @tests];
@@ -1110,7 +1109,7 @@ sub test_solution
 }
 
 
-sub auth_judge 
+sub auth_judge
 {
 
     $jid = $dbh->selectrow_array(qq~
@@ -1129,15 +1128,15 @@ sub auth_judge
         {
             $jsid .= @ch[rand @ch];
         }
-    
+
         if ($dbh->do(qq~UPDATE judges SET jsid=? WHERE id=?~, {}, $jsid, $jid) )
-        { 
+        {
             $dbh->commit;
             return 1;
         }
     }
-    
-    log_msg("login failed\n"); 
+
+    log_msg("login failed\n");
     0;
 }
 
@@ -1184,9 +1183,9 @@ sub set_request_state
 }
 
 
-sub process_requests 
+sub process_requests
 {
-   
+
     my $c = $dbh->prepare(qq~
         SELECT
             R.id, R.problem_id, R.contest_id, R.state, CA.is_jury,
@@ -1219,7 +1218,7 @@ sub process_requests
             WHERE S.req_id = ? AND D.id = S.de_id~, {}, $r->{id});
         # данная среда разработки не поддерживается
         if (!defined $judge_de{$de_code})
-        {  
+        {
             log_msg("unsupported DE $de_code in request $r->{id}\n");
             $dbh->do(q~UPDATE reqs SET state=? WHERE id=?~, undef, $cats::st_unhandled_error, $r->{id});
             $dbh->commit;
@@ -1240,13 +1239,13 @@ sub process_requests
         set_request_state($r->{id}, $cats::st_install_processing);
 
         clear_log_dump;
-                
+
         my $state = $cats::st_testing;
         if (!problem_ready($r->{problem_id}))
         {
             log_msg("install problem $r->{problem_id} log:\n");
 
-            # устанавливаем пакет с задачей            
+            # устанавливаем пакет с задачей
             eval {
                 initialize_problem($r->{problem_id})
                     or $state = $cats::st_unhandled_error;
@@ -1263,7 +1262,7 @@ sub process_requests
 
         set_request_state($r->{id}, $state, %$r);
         if ($state != $cats::st_unhandled_error)
-        { 
+        {
             # тестируем решение
             log_msg("test log:\n");
 
@@ -1284,7 +1283,7 @@ sub process_requests
             save_log_dump($r->{id});
 
             set_request_state($r->{id}, $state, failed_test => $failed_test, %$r);
-            
+
             $dbh->commit;
         }
         last;
@@ -1294,20 +1293,20 @@ sub process_requests
 }
 
 
-sub main_loop 
-{    
+sub main_loop
+{
     log_msg("judge: $judge_name\n");
 
-    my_chdir($workdir) 
+    my_chdir($workdir)
         or return undef;
-    
+
     for (my $i = 0; ; $i++)
     {
         sleep 2;
 
         my ($is_alive, $lock_counter, $current_sid) = $dbh->selectrow_array(qq~
             SELECT is_alive, lock_counter, jsid FROM judges WHERE id = ?~, {}, $jid);
-        
+
         if (!$is_alive)
         {
             log_msg("pong\n");
@@ -1317,7 +1316,7 @@ sub main_loop
                 $jid);
         }
         $dbh->commit;
-        
+
         log_msg("...\n") if $i % 5 == 0;
 
         next if $lock_counter; # judge locked
@@ -1326,7 +1325,7 @@ sub main_loop
             log_msg "killed: $current_sid != $jsid\n";
             last;
         }
-        
+
         last unless process_requests;
     }
 }
@@ -1348,7 +1347,7 @@ sub apply_defines
     {
         $expr =~ s/$_/$defines{$_}/g;
     }
-    
+
     $expr;
 }
 
@@ -1360,32 +1359,32 @@ sub start_handler
 
     my %de;
 
-    if ($el eq 'judge') 
+    if ($el eq 'judge')
     {
         $workdir = $atts{'workdir'};
         $rundir = $atts{'rundir'};
-        $judge_name = $atts{'name'};      
+        $judge_name = $atts{'name'};
         $report_file = $atts{'report_file'};
         $stdout_file = $atts{'stdout_file'};
         $formal_input_fname = $atts{'formal_input_fname'};
         $show_child_stdout = $atts{'show_child_stdout'};
         $save_child_stdout = $atts{'save_child_stdout'};
     }
-    
-    if ($el eq 'de') 
+
+    if ($el eq 'de')
     {
         $de{$_} = apply_defines($atts{$_})
             for qw(compile run generate check runfile);
-        $judge_de{$atts{'code'}} = \%de;        
+        $judge_de{$atts{'code'}} = \%de;
     }
-                            
+
     if ($el eq 'define')
-    {        
+    {
         $defines{$atts{'name'}} = apply_defines($atts{'value'});
     }
 
     if ($el eq 'checker')
-    {        
+    {
         $checkers{$atts{'name'}} = apply_defines($atts{'exec'});
     }
 }
@@ -1395,20 +1394,20 @@ sub end_handler
 {
 
     my ($p, $el) = @_;
-} 
+}
 
 
 sub read_cfg
-{ 
+{
     my $parser = new XML::Parser::Expat;
 
     $parser->setHandlers('Start' => \&start_handler, 'End' => \&end_handler, 'Char'  => \&char_handler);
 
-    open(CFG, $judge_cfg) 
+    open(CFG, $judge_cfg)
         or die "Couldn't open $judge_cfg\n";
 
     $parser->parse(*CFG);
-    
+
     close CFG;
 
     $judge_name     || die "$judge_cfg: undefined judge name";
