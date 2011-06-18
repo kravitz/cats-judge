@@ -4,6 +4,7 @@ use XML::Parser::Expat;
 
 use POSIX qw(strftime);
 use File::NCopy qw(copy);
+use Git::Wrapper;
 
 use lib 'lib';
 use CATS::Constants;
@@ -33,6 +34,7 @@ my $stdout_file;
 my $formal_input_fname;
 my $show_child_stdout;
 my $save_child_stdout;
+my $git_dir;
 my $judge_cfg = 'config.xml';
 
 my %defines;
@@ -41,6 +43,7 @@ my %checkers;
 
 my $jsid;
 my $jid;
+my $git;
 my $dump;
 
 my $problem_sources;
@@ -48,7 +51,25 @@ my $problem_sources;
 my ($log_month, $log_year);
 my $last_log_line = '';
 
-sub log_msg 
+# cpa = contest problem account
+sub cpa_from_source_info {
+    return ($_[0]{contest_id}, $_[0]{problem_id}, $_[0]{account_id});
+}
+
+sub contest_repository_path {
+    return "$git_dir\\contests\\$_[0]\\"
+}
+
+sub contest_repository {
+    return Git::Wrapper->new(contest_repository_path(@_));
+}
+
+sub get_source_from_hash {
+    my ($cid, $hash) = @_;
+    return join "\n", contest_repository($cid)->show($hash);
+}
+
+sub log_msg
 {
     my $s = shift;
     syswrite STDOUT, $s;
@@ -175,21 +196,54 @@ sub dump_child_stdout
 
 sub save_log_dump
 {
-    my $rid = shift;
+    my ($cid, $pid, $aid, $rid) = @_;
+    my $fname = "$pid\\$aid.log";
+
+    my $rep = contest_repository($cid);
+
+    open LOG, '>', $rep->dir() . $fname;
+    binmode(LOG, ":raw");
+    print LOG $dump;
+    close LOG;
+
+    my ($hash) = $rep->hash_object('-w', $rep->dir() . $fname);
+
+    my ($login, $email) = $dbh->selectrow_array(qq~
+        SELECT
+            login, email
+        FROM accounts
+        WHERE id = ?~, {}, $aid);
+
+    $rep->add($fname);
+    eval {
+       $rep->commit('--allow-empty-message', "--author='$login <$email>'",  '-m', ' ');
+    };
+    print "commited\n";
+
+    while (1)
+    {
+        eval {
+            $rep->push("origin", "master");
+        };
+        last unless $@;
+        print "Push to server failed: $@";
+        $rep->pull("--rebase", "-s recursive", "-X their"); # we want to place our changes on top
+    }
+    print "pushed";
 
     my $did = $dbh->selectrow_array(qq~SELECT id FROM log_dumps WHERE req_id=?~, {}, $rid);
     if (defined $did)
     {
-        my $c = $dbh->prepare(qq~UPDATE log_dumps SET dump=? WHERE id=?~);
-        $c->bind_param(1, $dump, { ora_type => 113 });
+        my $c = $dbh->prepare(qq~UPDATE log_dumps SET hash=? WHERE id=?~);
+        $c->bind_param(1, $hash);
         $c->bind_param(2, $did);
         $c->execute;
     }
     else
     {
-        my $c = $dbh->prepare(qq~INSERT INTO log_dumps (id, dump, req_id) VALUES(?,?,?)~);
+        my $c = $dbh->prepare(qq~INSERT INTO log_dumps (id, hash, req_id) VALUES(?,?,?)~);
         $c->bind_param(1, new_id);
-        $c->bind_param(2, $dump, { ora_type => 113 });
+        $c->bind_param(2, $hash);
         $c->bind_param(3, $rid);
         $c->execute;
     }
@@ -1182,13 +1236,29 @@ sub set_request_state
     $dbh->commit;
 }
 
+sub prepare_contest_repository{
+    my ($cid) = @_;
+
+    print "prepare" . contest_repository_path($cid) . "\n";
+    if (-d contest_repository_path($cid))
+    {
+        print "pull\n";
+        contest_repository($cid)->pull("origin", "master");
+    }
+    else
+    {
+        print "clone\n";
+        $git->clone("git://127.0.0.1/contests/$cid", contest_repository_path($cid));
+    }
+    print "preparation finished\n";
+}
 
 sub process_requests
 {
 
     my $c = $dbh->prepare(qq~
         SELECT
-            R.id, R.problem_id, R.contest_id, R.state, CA.is_jury,
+            R.id, R.problem_id, R.contest_id, R.account_id, R.state, CA.is_jury,
             (SELECT CP.status FROM contest_problems CP
                 WHERE CP.contest_id = R.contest_id AND CP.problem_id = R.problem_id) AS status
         FROM reqs R
@@ -1257,8 +1327,9 @@ sub process_requests
         {
             log_msg("problem $r->{problem_id} cached\n");
         }
-          
-        save_log_dump($r->{id});
+
+        prepare_contest_repository($r->{contest_id});
+        save_log_dump(cpa_from_source_info($r), $r->{id});
 
         set_request_state($r->{id}, $state, %$r);
         if ($state != $cats::st_unhandled_error)
@@ -1272,6 +1343,7 @@ sub process_requests
                 log_msg("renamed from '$fname'\n");
                 $fname =~ tr/_a-zA-Z0-9\.\\:$/x/c;
             }
+            my $src = get_source_from_hash($r->{contest_id}, $hash);
             ($state, $failed_test) = test_solution(
                 $r->{problem_id}, $r->{id}, $fname, $src, $de_id, $r->{contest_id});
 
@@ -1280,7 +1352,7 @@ sub process_requests
                 insert_test_run_details(result => ($state = $cats::st_unhandled_error));
             }
 
-            save_log_dump($r->{id});
+            save_log_dump(cpa_from_source_info($r), $r->{id});
 
             set_request_state($r->{id}, $state, failed_test => $failed_test, %$r);
 
@@ -1369,6 +1441,7 @@ sub start_handler
         $formal_input_fname = $atts{'formal_input_fname'};
         $show_child_stdout = $atts{'show_child_stdout'};
         $save_child_stdout = $atts{'save_child_stdout'};
+        $git_dir= $atts{'git_dir'};
     }
 
     if ($el eq 'de')
@@ -1415,6 +1488,7 @@ sub read_cfg
     $rundir         || die "$judge_cfg: undefined judge running directory";
     $report_file    || die "$judge_cfg: undefined spawner report file";
     $stdout_file    || die "$judge_cfg: undefined spawner stdout file";
+    $git_dir        || die "$judge_cfg: undefined git storage directory";
     $formal_input_fname || die "$judge_cfg: undefined file name for formal input";
 }
 
@@ -1424,6 +1498,7 @@ sub read_cfg
 (undef, undef, undef, undef, $log_month, $log_year) = localtime;
 open FDLOG, sprintf '>>judge-%04d-%02d.log', $log_year + 1900, $log_month + 1;
 CATS::DB::sql_connect;
+$git = Git::Wrapper->new('.');
 read_cfg;
 main_loop if auth_judge;
 CATS::DB::sql_disconnect;
