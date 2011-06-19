@@ -4,7 +4,7 @@ use XML::Parser::Expat;
 
 use POSIX qw(strftime);
 use File::NCopy qw(copy);
-use Git::Wrapper;
+use Git;
 
 use lib 'lib';
 use CATS::Constants;
@@ -61,12 +61,12 @@ sub contest_repository_path {
 }
 
 sub contest_repository {
-    return Git::Wrapper->new(contest_repository_path(@_));
+    return Git->repository(Directory => contest_repository_path(@_));
 }
 
 sub get_source_from_hash {
     my ($cid, $hash) = @_;
-    return join "\n", contest_repository($cid)->show($hash);
+    return join "\n", contest_repository($cid)->command(show => $hash);
 }
 
 sub log_msg
@@ -201,12 +201,12 @@ sub save_log_dump
 
     my $rep = contest_repository($cid);
 
-    open LOG, '>', $rep->dir() . $fname;
+    open LOG, '>', $rep->wc_path . $fname;
     binmode(LOG, ":raw");
     print LOG $dump;
     close LOG;
 
-    my ($hash) = $rep->hash_object('-w', $rep->dir() . $fname);
+    my ($hash) = $rep->command('hash-object', '-w', $rep->wc_path . $fname);
 
     my ($login, $email) = $dbh->selectrow_array(qq~
         SELECT
@@ -214,20 +214,20 @@ sub save_log_dump
         FROM accounts
         WHERE id = ?~, {}, $aid);
 
-    $rep->add($fname);
+    $rep->command(add => $fname);
     eval {
-       $rep->commit('--allow-empty-message', "--author='$login <$email>'",  '-m', ' ');
+       $rep->command(commit => "--author='$login <$email>'",  '-m', 'dump');
     };
     print "commited\n";
 
     while (1)
     {
         eval {
-            $rep->push("origin", "master");
+            $rep->command(push => "origin", "master");
         };
         last unless $@;
         print "Push to server failed: $@";
-        $rep->pull("--rebase", "-s recursive", "-X their"); # we want to place our changes on top
+        $rep->command(pull => "--rebase", "-s", "recursive", "-X", "theirs", "origin", "master"); # we want to place our changes on top
     }
     print "pushed";
 
@@ -1242,13 +1242,29 @@ sub prepare_contest_repository{
     print "prepare" . contest_repository_path($cid) . "\n";
     if (-d contest_repository_path($cid))
     {
-        print "pull\n";
-        contest_repository($cid)->pull("origin", "master");
+        while(1)
+        {
+            print "pull\n";
+            eval {
+                contest_repository($cid)->command(pull => "origin", "master");
+            };
+            last if !$@;
+            print $@;
+            print "retry...\n";
+        }
     }
     else
     {
-        print "clone\n";
-        $git->clone("git://127.0.0.1/contests/$cid", contest_repository_path($cid));
+        while(1)
+        {
+            print "clone\n";
+            eval {
+                Git::command(clone => "git://127.0.0.1/contests/$cid", contest_repository_path($cid));
+            };
+            last if !$@;
+            print $@;
+            print "retry...\n";
+        }
     }
     print "preparation finished\n";
 }
@@ -1498,7 +1514,7 @@ sub read_cfg
 (undef, undef, undef, undef, $log_month, $log_year) = localtime;
 open FDLOG, sprintf '>>judge-%04d-%02d.log', $log_year + 1900, $log_month + 1;
 CATS::DB::sql_connect;
-$git = Git::Wrapper->new('.');
+#$git = Git::Wrapper->new('.');
 read_cfg;
 main_loop if auth_judge;
 CATS::DB::sql_disconnect;
