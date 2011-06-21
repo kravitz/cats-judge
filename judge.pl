@@ -4,13 +4,14 @@ use XML::Parser::Expat;
 
 use POSIX qw(strftime);
 use File::NCopy qw(copy);
-use Git;
 
 use lib 'lib';
 use CATS::Constants;
 use CATS::Utils qw(split_fname);
 use CATS::DB qw(new_id $dbh);
 use CATS::Testset;
+use Git;
+use CATS::Git qw(:all);
 
 use open IN => ':crlf', OUT => ':raw';
 
@@ -50,24 +51,6 @@ my $problem_sources;
 
 my ($log_month, $log_year);
 my $last_log_line = '';
-
-# cpa = contest problem account
-sub cpa_from_source_info {
-    return ($_[0]{contest_id}, $_[0]{problem_id}, $_[0]{account_id});
-}
-
-sub contest_repository_path {
-    return "$git_dir\\contests\\$_[0]\\"
-}
-
-sub contest_repository {
-    return Git->repository(Directory => contest_repository_path(@_));
-}
-
-sub get_source_from_hash {
-    my ($cid, $hash) = @_;
-    return join "\n", contest_repository($cid)->command(show => $hash);
-}
 
 sub log_msg
 {
@@ -201,10 +184,7 @@ sub save_log_dump
 
     my $rep = contest_repository($cid);
 
-    open LOG, '>', $rep->wc_path . $fname;
-    binmode(LOG, ":raw");
-    print LOG $dump;
-    close LOG;
+    write_to_file($rep->wc_path . $fname, $dump);
 
     my ($hash) = $rep->command('hash-object', '-w', $rep->wc_path . $fname);
 
@@ -215,6 +195,8 @@ sub save_log_dump
         WHERE id = ?~, {}, $aid);
 
     $rep->command(add => $fname);
+    $login = escape_cmdline($login);
+    $email = escape_cmdline($email);
     eval {
        $rep->command(commit => "--author='$login <$email>'",  '-m', 'dump');
     };
@@ -1506,6 +1488,8 @@ sub read_cfg
     $stdout_file    || die "$judge_cfg: undefined spawner stdout file";
     $git_dir        || die "$judge_cfg: undefined git storage directory";
     $formal_input_fname || die "$judge_cfg: undefined file name for formal input";
+
+    set_new_root($git_dir);
 }
 
 
@@ -1514,7 +1498,6 @@ sub read_cfg
 (undef, undef, undef, undef, $log_month, $log_year) = localtime;
 open FDLOG, sprintf '>>judge-%04d-%02d.log', $log_year + 1900, $log_month + 1;
 CATS::DB::sql_connect;
-#$git = Git::Wrapper->new('.');
 read_cfg;
 main_loop if auth_judge;
 CATS::DB::sql_disconnect;
