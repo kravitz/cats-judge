@@ -197,9 +197,7 @@ sub save_log_dump
     $rep->command(add => $fname);
     $login = escape_cmdline($login);
     $email = escape_cmdline($email);
-    eval {
-       $rep->command(commit => "--author='$login <$email>'",  '-m', 'dump');
-    };
+    commit($rep, "--author='$login <$email>'",  '-m', "$aid");
     print "commited\n";
 
     while (1)
@@ -216,17 +214,19 @@ sub save_log_dump
     my $did = $dbh->selectrow_array(qq~SELECT id FROM log_dumps WHERE req_id=?~, {}, $rid);
     if (defined $did)
     {
-        my $c = $dbh->prepare(qq~UPDATE log_dumps SET hash=? WHERE id=?~);
+        my $c = $dbh->prepare(qq~UPDATE log_dumps SET blob_hash=?, dump=? WHERE id=?~);
         $c->bind_param(1, $hash);
-        $c->bind_param(2, $did);
+        $c->bind_param(2, $dump);
+        $c->bind_param(3, $did);
         $c->execute;
     }
     else
     {
-        my $c = $dbh->prepare(qq~INSERT INTO log_dumps (id, hash, req_id) VALUES(?,?,?)~);
+        my $c = $dbh->prepare(qq~INSERT INTO log_dumps (id, blob_hash, dump, req_id) VALUES(?,?,?,?)~);
         $c->bind_param(1, new_id);
         $c->bind_param(2, $hash);
-        $c->bind_param(3, $rid);
+        $c->bind_param(3, $dump);
+        $c->bind_param(4, $rid);
         $c->execute;
     }
 }
@@ -1279,9 +1279,9 @@ sub process_requests
         }
         $r->{status} == $cats::problem_st_ready || $r->{is_jury}
             or next;
-        my ($hash , $fname, $de_id, $de_code) =
+        my ($src, $fname, $de_id, $de_code) =
         $dbh->selectrow_array(qq~
-            SELECT S.hash, S.fname, D.id, D.code
+            SELECT S.src, S.fname, D.id, D.code
             FROM sources S, default_de D
             WHERE S.req_id = ? AND D.id = S.de_id~, {}, $r->{id});
         # данная среда разработки не поддерживается
@@ -1341,7 +1341,6 @@ sub process_requests
                 log_msg("renamed from '$fname'\n");
                 $fname =~ tr/_a-zA-Z0-9\.\\:$/x/c;
             }
-            my $src = get_source_from_hash($r->{contest_id}, $hash);
             ($state, $failed_test) = test_solution(
                 $r->{problem_id}, $r->{id}, $fname, $src, $de_id, $r->{contest_id});
 

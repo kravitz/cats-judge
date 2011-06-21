@@ -1164,7 +1164,7 @@ use C<command_close_pipe()>, which can throw the exception.
 	sub cmd_output {
 		my $self = shift;
 		my $ref = $self->{'-outputref'};
-		defined $ref or undef;
+		defined $ref or return undef;
 		if (ref $ref eq 'ARRAY') {
 			return @$ref;
 		} else { # SCALAR
